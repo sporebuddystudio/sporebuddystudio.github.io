@@ -14,12 +14,12 @@ camera.position.z = 12;
 const CFG = {
   count: 800,
 
-  spreadX: 15,
-  spreadY: 12,
-  spreadZ: 15,
+  spreadX: 8,
+  spreadY: 8,
+  spreadZ: 8,
 
   // densità centro: più basso = più denso
-  centerSigma: 0.25,
+  centerSigma: 0.05,
 
   // dinamica
   damping: 0.92,
@@ -41,7 +41,7 @@ const CFG = {
   // look
   baseColor: new THREE.Color(0x3fd0c9),
   hoverColor: new THREE.Color(0xffffff),
-  size: 0.5, // dimensione base spore
+  size: 1, // dimensione base spore
   opacity: 0.85,
 };
 
