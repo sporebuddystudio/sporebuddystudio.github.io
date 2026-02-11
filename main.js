@@ -117,12 +117,20 @@ const baseColor=new THREE.Color(CFG.PARTICLES.color);
 
 function screenToWorld(xNDC,yNDC,depth){
 
-  const v=new THREE.Vector3(xNDC,yNDC,-1);
-  v.unproject(camera);
+  // crea un raggio dalla camera
+  const origin = new THREE.Vector3();
+  const direction = new THREE.Vector3(xNDC,yNDC,0.5);
 
-  const dir=v.sub(camera.position).normalize();
-  return camera.position.clone().add(dir.multiplyScalar(depth));
+  origin.copy(camera.position);
+
+  direction.unproject(camera);
+  direction.sub(camera.position).normalize();
+
+  // IMPORTANTISSIMO:
+  // depth è distanza DAVANTI alla camera
+  return origin.add(direction.multiplyScalar(depth));
 }
+
 
 /* ---------- UNIFORM SCREEN SPAWN (LA PATCH IMPORTANTE) ---------- */
 
