@@ -19,7 +19,7 @@ const CFG = {
   spreadZ: 15,
 
   // densità centro: più basso = più denso
-  centerSigma: 0.20,
+  centerSigma: 0.25,
 
   // dinamica
   damping: 0.92,
@@ -41,7 +41,7 @@ const CFG = {
   // look
   baseColor: new THREE.Color(0x3fd0c9),
   hoverColor: new THREE.Color(0xffffff),
-  size: 0.2, // dimensione base spore
+  size: 0.5, // dimensione base spore
   opacity: 0.85,
 };
 
