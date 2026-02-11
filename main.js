@@ -8,8 +8,8 @@ const CFG = {
   PARTICLES:{
     count:2500,
 
-    depthNear:1.5,
-    depthFar:12.0,
+    depthNear:1.5,   // distanza DAVANTI alla camera
+    depthFar:12.0,   // distanza DAVANTI alla camera
 
     damping:0.98,
     driftXY:0.02,
@@ -82,7 +82,6 @@ function makeSoftDotTexture(p){
   g.addColorStop(p.haloInner,`rgba(255,255,255,${p.haloAlphaMid})`);
   g.addColorStop(p.haloMid,`rgba(255,255,255,${p.haloAlphaMid*0.35})`);
   g.addColorStop(1,"rgba(255,255,255,0)");
-
   ctx.fillStyle=g;
   ctx.fillRect(0,0,size,size);
 
@@ -95,7 +94,6 @@ function makeSoftDotTexture(p){
   const g2=ctx.createRadialGradient(cx,cy,coreR,cx,cy,coreR+r*p.coreSoftness);
   g2.addColorStop(0,`rgba(255,255,255,${p.coreAlpha})`);
   g2.addColorStop(1,"rgba(255,255,255,0)");
-
   ctx.fillStyle=g2;
   ctx.beginPath();
   ctx.arc(cx,cy,coreR+r*p.coreSoftness,0,Math.PI*2);
@@ -109,35 +107,32 @@ function makeSoftDotTexture(p){
 }
 
 /* =========================================================
-   PARTICLES BUILD
+   SPAWN SCREEN-SPACE (ROBUSTO)
    ========================================================= */
 
-let COUNT=0,positions,colors,velocities,geo,mat,points,dotTex;
-const baseColor=new THREE.Color(CFG.PARTICLES.color);
+const raycaster = new THREE.Raycaster();
+const mouseNDC = new THREE.Vector2();
+const spawnPos = new THREE.Vector3();
 
 function screenToWorld(xNDC,yNDC,depth){
 
-  // crea un raggio dalla camera
-  const origin = new THREE.Vector3();
-  const direction = new THREE.Vector3(xNDC,yNDC,0.5);
+  // NDC → raggio dalla camera
+  mouseNDC.set(xNDC,yNDC);
+  raycaster.setFromCamera(mouseNDC,camera);
 
-  origin.copy(camera.position);
+  // punto a "depth" davanti alla camera lungo il raggio
+  spawnPos.copy(raycaster.ray.direction)
+          .multiplyScalar(depth)
+          .add(camera.position);
 
-  direction.unproject(camera);
-  direction.sub(camera.position).normalize();
-
-  // IMPORTANTISSIMO:
-  // depth è distanza DAVANTI alla camera
-  return origin.add(direction.multiplyScalar(depth));
+  return spawnPos;
 }
-
-
-/* ---------- UNIFORM SCREEN SPAWN (LA PATCH IMPORTANTE) ---------- */
 
 function spawnParticle(i3){
 
   const depth=THREE.MathUtils.lerp(CFG.PARTICLES.depthNear,CFG.PARTICLES.depthFar,Math.random());
 
+  // posizione uniforme sullo schermo
   const xNDC=Math.random()*2-1;
   const yNDC=Math.random()*2-1;
 
@@ -148,7 +143,12 @@ function spawnParticle(i3){
   positions[i3+2]=w.z;
 }
 
-/* ========================================================= */
+/* =========================================================
+   PARTICLES BUILD
+   ========================================================= */
+
+let COUNT=0,positions,colors,velocities,geo,mat,points,dotTex;
+const baseColor=new THREE.Color(CFG.PARTICLES.color);
 
 function rebuildAll(){
 
