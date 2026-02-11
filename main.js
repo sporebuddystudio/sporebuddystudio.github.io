@@ -10,35 +10,37 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.z = 12;
 
-// ---------------- Tuning (WORLD UNITS) ----------------
+// ---------------- Tuning ----------------
 const CFG = {
-  count: 900,
+  count: 800,
 
-  spreadX: 10,
+  spreadX: 8,
   spreadY: 8,
-  spreadZ: 10,
+  spreadZ: 8,
 
-  centerSigma: 0.22,
+  // densità centro: più basso = più denso
+  centerSigma: 0.25,
 
+  // dinamica
   damping: 0.92,
   drift: 0.012,
 
-  // mouse influence (WORLD units)
-  influenceRadius: 2.4,
-  repulseStrength: 2.2,
-  colorSmooth: 10.0,
+  // mouse influence (NDC units)
+  influenceRadius: 0.45,      // PATCH: era 0.28 (troppo piccolo, sembra “non funziona”)
+  repulseStrength: 2.2,       // PATCH: più evidente
+  colorSmooth: 9.0,
 
-  // atom mode (WORLD units)
-  atomCaptureRadius: 2.6,
-  atomCaptureSpeed: 1.1,
-  atomPullStrength: 2.4,
-  atomOrbitStrength: 1.2,
-  atomReleaseSpeed: 0.22,
+  // atom mode (click) (NDC units)
+  atomCaptureRadius: 0.55,    // PATCH: era 0.32
+  atomCaptureSpeed: 0.9,
+  atomPullStrength: 2.0,
+  atomOrbitStrength: 1.1,
+  atomReleaseSpeed: 0.25,
   atomBoostMax: 1.45,
 
+  // look
   baseColor: new THREE.Color(0x3fd0c9),
   hoverColor: new THREE.Color(0xffffff),
-
   size: 0.08,
   opacity: 0.85,
 };
@@ -49,6 +51,8 @@ function smoothstep(a, b, x) {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
 }
+
+// gaussian-ish random (Box-Muller)
 function randN() {
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
@@ -62,13 +66,17 @@ function makeSoftDotTexture(sizePx = 128) {
   c.width = c.height = sizePx;
   const ctx = c.getContext("2d");
 
-  const cx = sizePx / 2, cy = sizePx / 2, r = sizePx / 2;
+  const cx = sizePx / 2;
+  const cy = sizePx / 2;
+  const r = sizePx / 2;
+
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
   g.addColorStop(0.0, "rgba(255,255,255,1.00)");
   g.addColorStop(0.12, "rgba(255,255,255,0.95)");
-  g.addColorStop(0.30, "rgba(255,255,255,0.35)");
+  g.addColorStop(0.3, "rgba(255,255,255,0.35)");
   g.addColorStop(0.55, "rgba(255,255,255,0.10)");
   g.addColorStop(1.0, "rgba(255,255,255,0.00)");
+
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, sizePx, sizePx);
 
@@ -78,13 +86,17 @@ function makeSoftDotTexture(sizePx = 128) {
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   return tex;
 }
+
 const dotTex = makeSoftDotTexture(128);
 
 // ------------- Buffers -------------
 const N = CFG.count;
+
 const positions = new Float32Array(N * 3);
 const velocities = new Float32Array(N * 3);
 const colors = new Float32Array(N * 3);
+
+// atom state: 0..1
 const atom = new Float32Array(N);
 const atomRadius = new Float32Array(N);
 
@@ -108,7 +120,7 @@ for (let i = 0; i < N; i++) {
   colors[i3 + 2] = CFG.baseColor.b;
 
   atom[i] = 0;
-  atomRadius[i] = 0.6 + Math.random() * 1.2;
+  atomRadius[i] = 0.55 + Math.random() * 1.0;
 }
 
 const geo = new THREE.BufferGeometry();
@@ -129,35 +141,28 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 scene.add(points);
 
-// ---------------- Mouse via RAYCAST on z=0 plane ----------------
-const mouseWorld = new THREE.Vector3(0, 0, 0);
-let hasMouseWorld = false;
-
-const raycaster = new THREE.Raycaster();
-const mouseNDC = new THREE.Vector2(0, 0);
-const planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // z=0
-
+// ------------------------------------------------------------
+// Mouse + Parallax state (screen-space approach)
+// ------------------------------------------------------------
 let targetParX = 0, targetParY = 0;
 let curParX = 0, curParY = 0;
 
-function updateMouseFromEvent(e) {
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width;
-  const y = (e.clientY - rect.top) / rect.height;
+const tmpV3 = new THREE.Vector3();
+let mouseNX = 0, mouseNY = 0; // NDC
 
-  // NDC
-  mouseNDC.x = x * 2 - 1;
-  mouseNDC.y = -(y * 2 - 1);
+window.addEventListener("pointermove", (e) => {
+  const w = window.innerWidth || 1;
+  const h = window.innerHeight || 1;
 
-  targetParX = mouseNDC.x;
-  targetParY = -mouseNDC.y;
+  const nx = (e.clientX / w) * 2 - 1;
+  const ny = (e.clientY / h) * 2 - 1;
 
-  raycaster.setFromCamera(mouseNDC, camera);
-  const hit = raycaster.ray.intersectPlane(planeZ0, mouseWorld);
-  hasMouseWorld = !!hit;
-}
+  mouseNX = nx;
+  mouseNY = -ny; // project() usa NDC con Y già “up”
 
-window.addEventListener("pointermove", updateMouseFromEvent, { passive: true });
+  targetParX = nx;
+  targetParY = ny;
+}, { passive: true });
 
 // Atom toggle
 let atomMode = false;
@@ -184,12 +189,13 @@ function tick() {
   const t = clock.getElapsedTime();
   const dt = Math.min(clock.getDelta(), 0.033);
 
+  // parallax leggerissimo
   curParX += (targetParX - curParX) * 0.04;
   curParY += (targetParY - curParY) * 0.04;
 
-  points.rotation.y = curParX * 0.16;
-  points.rotation.x = -curParY * 0.10;
-  points.rotation.z += 0.00032;
+  points.rotation.y = curParX * 0.18;
+  points.rotation.x = -curParY * 0.12;
+  points.rotation.z += 0.00035;
 
   const r = CFG.influenceRadius;
   const r2 = r * r;
@@ -208,38 +214,21 @@ function tick() {
     let vy = velocities[i3 + 1];
     let vz = velocities[i3 + 2];
 
-    // drift
+    // drift base
     vx += Math.sin(t * 0.35 + px * 0.16) * CFG.drift * dt * 60;
     vy += Math.cos(t * 0.33 + py * 0.19) * CFG.drift * dt * 60;
     vz += Math.sin(t * 0.27 + pz * 0.14) * (CFG.drift * 0.7) * dt * 60;
 
-    // mouse influence (world)
-    let influence = 0;
+    // distanza in screen-space (NDC)
+    tmpV3.set(px, py, pz).project(camera);
+    const dx = tmpV3.x - mouseNX;
+    const dy = tmpV3.y - mouseNY;
+    const d2 = dx * dx + dy * dy;
 
-    // if we don't have a valid mouseWorld yet, keep neutral
-    let wx = 0, wy = 0, wd2 = 999999;
-
-    if (hasMouseWorld) {
-      wx = px - mouseWorld.x;
-      wy = py - mouseWorld.y;
-      wd2 = wx * wx + wy * wy;
-
-      if (wd2 < r2) {
-        const d = Math.sqrt(wd2);
-        influence = 1.0 - smoothstep(0.0, r, d);
-
-        // repulsion (world)
-        const inv = 1.0 / (d + 0.0001);
-        const repel = influence * CFG.repulseStrength;
-        vx += wx * inv * repel * dt;
-        vy += wy * inv * repel * dt;
-      }
-    }
-
-    // atom capture/release (world distance)
-    if (atomMode && hasMouseWorld) {
-      if (wd2 < capR2) {
-        const d = Math.sqrt(wd2);
+    // atom capture/release (screen)
+    if (atomMode) {
+      if (d2 < capR2) {
+        const d = Math.sqrt(d2);
         const w = 1.0 - smoothstep(0.0, capR, d);
         atom[i] = Math.min(1, atom[i] + w * CFG.atomCaptureSpeed * dt);
       } else {
@@ -249,22 +238,41 @@ function tick() {
       atom[i] = Math.max(0, atom[i] - CFG.atomReleaseSpeed * dt);
     }
 
-    // atom orbit (world)
+    // influence + repulsion (screen-space)
+    let influence = 0;
+    if (d2 < r2) {
+      const d = Math.sqrt(d2);
+      influence = 1.0 - smoothstep(0.0, r, d);
+
+      // repulsione in world XY (semplice ma visibile)
+      // spingiamo lungo la direzione dal centro verso il punto
+      const inv = 1.0 / (d + 0.0001);
+      const repel = influence * CFG.repulseStrength;
+
+      // scala per convertire NDC->world (approssimata, stabile)
+      const scale = 6.0;
+      vx += dx * inv * repel * dt * scale;
+      vy += dy * inv * repel * dt * scale;
+    }
+
+    // atom orbit (screen-space tangenziale)
     const a = atom[i];
-    if (a > 0.001 && hasMouseWorld) {
-      const d = Math.sqrt(wd2);
+    if (a > 0.001) {
+      const d = Math.sqrt(d2);
       const inv = 1.0 / (d + 0.0001);
 
-      const err = d - atomRadius[i];
+      const err = d - atomRadius[i] * 0.08; // target ring in NDC
       const pull = -err * CFG.atomPullStrength * a;
-      vx += wx * inv * pull * dt;
-      vy += wy * inv * pull * dt;
 
-      const tx = -wy * inv;
-      const ty = wx * inv;
+      vx += dx * inv * pull * dt * 6.0;
+      vy += dy * inv * pull * dt * 6.0;
+
+      const tx = -dy * inv;
+      const ty = dx * inv;
       const orbit = CFG.atomOrbitStrength * a;
-      vx += tx * orbit * dt;
-      vy += ty * orbit * dt;
+
+      vx += tx * orbit * dt * 6.0;
+      vy += ty * orbit * dt * 6.0;
     }
 
     // damping
@@ -277,7 +285,7 @@ function tick() {
     py += vy;
     pz += vz;
 
-    // bounds
+    // soft bounds
     if (px > CFG.spreadX) vx -= 0.02;
     if (px < -CFG.spreadX) vx += 0.02;
     if (py > CFG.spreadY) vy -= 0.02;
@@ -293,7 +301,7 @@ function tick() {
     velocities[i3 + 1] = vy;
     velocities[i3 + 2] = vz;
 
-    // color smooth
+    // smooth color
     const boost = 1.0 + a * (CFG.atomBoostMax - 1.0);
     const br = Math.min(1.0, CFG.baseColor.r * boost);
     const bg = Math.min(1.0, CFG.baseColor.g * boost);
