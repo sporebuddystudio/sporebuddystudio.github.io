@@ -114,19 +114,35 @@ const raycaster = new THREE.Raycaster();
 const mouseNDC = new THREE.Vector2();
 const spawnPos = new THREE.Vector3();
 
+const planeNormal = new THREE.Vector3();
+const planePoint  = new THREE.Vector3();
+const hitPoint    = new THREE.Vector3();
+
 function screenToWorld(xNDC,yNDC,depth){
 
-  // NDC → raggio dalla camera
+  // raggio dalla camera
   mouseNDC.set(xNDC,yNDC);
   raycaster.setFromCamera(mouseNDC,camera);
 
-  // punto a "depth" davanti alla camera lungo il raggio
-  spawnPos.copy(raycaster.ray.direction)
-          .multiplyScalar(depth)
-          .add(camera.position);
+  // piano parallelo alla camera posto DAVANTI alla camera
+  camera.getWorldDirection(planeNormal);
 
-  return spawnPos;
+  // la camera guarda -Z, quindi invertiamo
+  planeNormal.multiplyScalar(-1);
+
+  // punto del piano = camera + forward * depth
+  planePoint.copy(camera.position)
+            .add(planeNormal.clone().multiplyScalar(depth));
+
+  // intersezione raggio ↔ piano
+  raycaster.ray.intersectPlane(
+    new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint),
+    hitPoint
+  );
+
+  return hitPoint;
 }
+
 
 function spawnParticle(i3){
 
