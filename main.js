@@ -125,7 +125,7 @@ const mat = new THREE.PointsMaterial({
   opacity: CFG.opacity,
   vertexColors: true,
   depthWrite: false,
-  blending: THREE.AdditiveBlending,
+  blending: THREE.NormalBlending, // DEBUG: più leggibile del colore (poi possiamo tornare ad Additive)
   map: dotTex,
 });
 
@@ -191,6 +191,9 @@ atomMode: ${atomMode ? "ON" : "OFF"}`
   points.rotation.x = -curParY * 0.12;
   points.rotation.z += 0.00035;
 
+  // IMPORTANT: stiamo ruotando i points, quindi serve matrixWorld aggiornata
+  points.updateMatrixWorld(true);
+
   const r = CFG.influenceRadius;
   const r2 = r * r;
 
@@ -214,7 +217,8 @@ atomMode: ${atomMode ? "ON" : "OFF"}`
     vz += Math.sin(t * 0.27 + pz * 0.14) * (CFG.drift * 0.7) * dt * 60;
 
     // screen-space distance
-    tmpV3.set(px, py, pz).project(camera);
+    // project in NDC usando posizione WORLD (coerente con points.rotation)
+    tmpV3.set(px, py, pz).applyMatrix4(points.matrixWorld).project(camera);
     const dx = tmpV3.x - mouseNX;
     const dy = tmpV3.y - mouseNY;
     const d2 = dx * dx + dy * dy;
