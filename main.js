@@ -67,7 +67,7 @@ renderer.setClearColor(0x000000, 0);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  60,
+  80,
   window.innerWidth / window.innerHeight,
   0.1,
   100
