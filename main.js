@@ -3,9 +3,18 @@ import * as THREE from "https://unpkg.com/three@0.159.0/build/three.module.js";
 /* ---------------- renderer ---------------- */
 
 const canvas = document.getElementById("c");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: true        // ← IMPORTANTISSIMO
+});
+
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+
+// niente clear nero
+renderer.setClearColor(0x000000, 0); // 0 = completamente trasparente
+
 
 /* ---------------- scene & camera ---------------- */
 
