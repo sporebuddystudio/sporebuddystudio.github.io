@@ -6,12 +6,17 @@ const CFG = {
   PARTICLES: {
     count: 1800,
 
+    // (spreadX/Y non servono più per lo spawn; li lasciamo come “legacy”)
     spreadX: 14,
     spreadY: 14,
     spreadZ: 10,
 
+    // profondità (camera-space): più grande = più “volumetrico”
+    depthNear: 2.0,   // distanza davanti alla camera
+    depthFar: 16.0,   // distanza davanti alla camera
+
     // simulation
-    bounds: 8,       // (non usato più per il box; lo lasciamo ma puoi eliminarlo)
+    bounds: 8,       // non usato per il box
     damping: 0.98,
     driftXY: 0.02,
     driftZ: 0.01,
@@ -142,23 +147,6 @@ const velocities = new Float32Array(COUNT * 3);
 
 const baseColor = new THREE.Color(CFG.PARTICLES.color);
 
-for (let i = 0; i < COUNT; i++) {
-
-  const i3 = i * 3;
-
-  positions[i3+0] = (Math.random() - 0.5) * CFG.PARTICLES.spreadX;
-  positions[i3+1] = (Math.random() - 0.5) * CFG.PARTICLES.spreadY;
-  positions[i3+2] = (Math.random() - 0.5) * CFG.PARTICLES.spreadZ;
-
-  velocities[i3+0] = (Math.random() - 0.5) * 0.15;
-  velocities[i3+1] = (Math.random() - 0.5) * 0.15;
-  velocities[i3+2] = (Math.random() - 0.5) * 0.05;
-
-  colors[i3+0] = baseColor.r;
-  colors[i3+1] = baseColor.g;
-  colors[i3+2] = baseColor.b;
-}
-
 const geo = new THREE.BufferGeometry();
 geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
@@ -194,7 +182,7 @@ function wrapCameraSpaceLocal(px, py, pz) {
   // world -> camera space
   _cPos.copy(_wPos).applyMatrix4(camera.matrixWorldInverse);
 
-  // camera guarda verso -Z; davanti = z negativo in camera space
+  // camera guarda verso -Z; davanti = z negativo
   const depth = Math.max(0.25, -_cPos.z);
 
   // dimensioni visibili a questa profondità
@@ -217,6 +205,66 @@ function wrapCameraSpaceLocal(px, py, pz) {
 
   return _lPos;
 }
+
+/* ---------------- spawn (camera-frustum) ---------------- */
+
+const _spawnCam = new THREE.Vector3();
+const _spawnWorld = new THREE.Vector3();
+const _spawnLocal = new THREE.Vector3();
+
+function spawnInCameraFrustumLocal() {
+  // aggiorna matrici (importante se points ruota)
+  points.updateMatrixWorld(true);
+
+  // scegli una profondità davanti alla camera
+  const depth = THREE.MathUtils.lerp(
+    CFG.PARTICLES.depthNear,
+    CFG.PARTICLES.depthFar,
+    Math.random()
+  );
+
+  // dimensioni del frustum a quella profondità
+  const halfH = Math.tan(_halfFovRad) * depth;
+  const halfW = halfH * camera.aspect;
+
+  // posizione random in camera-space
+  _spawnCam.set(
+    (Math.random() * 2 - 1) * halfW,
+    (Math.random() * 2 - 1) * halfH,
+    -depth // davanti alla camera
+  );
+
+  // camera -> world
+  _spawnWorld.copy(_spawnCam).applyMatrix4(camera.matrixWorld);
+
+  // world -> local (del Points)
+  _invPoints.copy(points.matrixWorld).invert();
+  _spawnLocal.copy(_spawnWorld).applyMatrix4(_invPoints);
+
+  return _spawnLocal;
+}
+
+// inizializzazione PARTICELLE (spawn corretto)
+for (let i = 0; i < COUNT; i++) {
+  const i3 = i * 3;
+
+  const p = spawnInCameraFrustumLocal();
+  positions[i3 + 0] = p.x;
+  positions[i3 + 1] = p.y;
+  positions[i3 + 2] = p.z;
+
+  velocities[i3 + 0] = (Math.random() - 0.5) * 0.15;
+  velocities[i3 + 1] = (Math.random() - 0.5) * 0.15;
+  velocities[i3 + 2] = (Math.random() - 0.5) * 0.05;
+
+  colors[i3 + 0] = baseColor.r;
+  colors[i3 + 1] = baseColor.g;
+  colors[i3 + 2] = baseColor.b;
+}
+
+// segnala che le geometry attrib sono pronti
+geo.getAttribute("position").needsUpdate = true;
+geo.getAttribute("color").needsUpdate = true;
 
 /* ---------------- simulation ---------------- */
 
@@ -248,15 +296,16 @@ function update(dt) {
     py += vy * dt;
     pz += vz * dt;
 
-    // --- screen-fog wrap (wrap X/Y sui bordi visibili della camera) ---
+    // screen-fog wrap X/Y
     const wrapped = wrapCameraSpaceLocal(px, py, pz);
     px = wrapped.x;
     py = wrapped.y;
 
-    // Z: manteniamo profondità volumetrica con wrap semplice su spreadZ
-    const zHalf = CFG.PARTICLES.spreadZ * 0.5;
-    if (pz > zHalf) pz = -zHalf;
-    else if (pz < -zHalf) pz = zHalf;
+    // Z: wrap sul range di profondità in modo coerente con lo spawn
+    const zNear = -CFG.PARTICLES.depthNear;
+    const zFar = -CFG.PARTICLES.depthFar;
+    if (pz > zNear) pz = zFar;
+    else if (pz < zFar) pz = zNear;
 
     vx *= damping;
     vy *= damping;
