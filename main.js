@@ -4,7 +4,7 @@ import * as THREE from "https://unpkg.com/three@0.159.0/build/three.module.js";
 
 const CFG = {
   PARTICLES: {
-    count: 1800,
+    count: 2500,
 
     // (spreadX/Y non servono più per lo spawn; li lasciamo come “legacy”)
     spreadX: 14,
@@ -12,8 +12,8 @@ const CFG = {
     spreadZ: 10,
 
     // profondità (camera-space): più grande = più “volumetrico”
-    depthNear: 2.0,   // distanza davanti alla camera
-    depthFar: 16.0,   // distanza davanti alla camera
+    depthNear: 1.5,   // distanza davanti alla camera
+    depthFar: 12.0,   // distanza davanti alla camera
 
     // simulation
     bounds: 8,       // non usato per il box
