@@ -179,6 +179,9 @@ window.addEventListener(
     const nx = (e.clientX / w) * 2 - 1;
     const ny = (e.clientY / h) * 2 - 1;
 
+    mouseNX = nx;
+    mouseNY = -ny; // attenzione: NDC Y è invertito rispetto a screen
+    
     targetParX = nx;
     targetParY = ny;
 
@@ -211,6 +214,10 @@ window.addEventListener("resize", resize);
 resize();
 
 // ------------- Loop -------------
+
+const tmpV3 = new THREE.Vector3();
+let mouseNX = 0, mouseNY = 0; // mouse in NDC ([-1..1])
+
 const clock = new THREE.Clock();
 
 function tick() {
@@ -248,9 +255,11 @@ function tick() {
     vz += Math.sin(t * 0.27 + pz * 0.14) * (CFG.drift * 0.7) * dt * 60;
 
     // distanza mouse (nel piano)
-    const dx = px - mouseWorld.x;
-    const dy = py - mouseWorld.y;
+    tmpV3.set(px, py, pz).project(camera); // tmpV3.x/y ora sono in NDC
+    const dx = tmpV3.x - mouseNX;
+    const dy = tmpV3.y - mouseNY;
     const d2 = dx * dx + dy * dy;
+
 
     // --- atom capture/release ---
     if (atomMode) {
