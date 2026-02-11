@@ -43,6 +43,58 @@
       white-space: pre;
       user-select: none;
     }
+
+    /* Tuning panel */
+    #ctl {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      z-index: 30;
+      width: 320px;
+      padding: 10px 10px 12px;
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 12px;
+      color: rgba(255,255,255,0.9);
+      pointer-events: auto;
+      user-select: none;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    #ctl .title {
+      display:flex; align-items:center; justify-content:space-between;
+      font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      opacity: .95;
+      margin-bottom: 8px;
+    }
+    #ctl .grid {
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .row {
+      display:grid;
+      grid-template-columns: 108px 1fr 56px;
+      gap: 8px;
+      align-items:center;
+    }
+    .row label { opacity: .92; }
+    .row input[type="range"] { width: 100%; }
+    .row .v { text-align:right; opacity:.9; }
+    .btns {
+      display:flex; gap:8px; margin-top:10px; flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      cursor: pointer;
+    }
+    .btn:hover { background: rgba(255,255,255,0.10); }
   </style>
 </head>
 <body>
@@ -50,6 +102,19 @@
     <h1>SporeBuddy</h1>
     <p>Creative real-time studio working on tools, games and 3D assets.</p>
     <p class="pill">Support: <a href="mailto:sporebuddy.studio@gmail.com">sporebuddy.studio@gmail.com</a></p>
+  </div>
+
+  <div id="ctl">
+    <div class="title">
+      <div>Tuning</div>
+      <div id="ctlHint" style="opacity:.8;">live</div>
+    </div>
+    <div class="grid" id="ctlGrid"></div>
+    <div class="btns">
+      <button class="btn" id="btnReseed">Re-seed</button>
+      <button class="btn" id="btnTex">Rebuild Texture</button>
+      <button class="btn" id="btnAll">Rebuild All</button>
+    </div>
   </div>
 
   <div id="dbg">loading...</div>
