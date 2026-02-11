@@ -26,12 +26,12 @@ const CFG = {
   drift: 0.012,
 
   // mouse influence (repulsione + colore)
-  influenceRadius: 2.8,
+  influenceRadius: 0.28,
   repulseStrength: 1.45,
   colorSmooth: 9.0, // smoothing colore (più alto = più rapido)
 
   // atom mode (click)
-  atomCaptureRadius: 3.0,
+  atomCaptureRadius: 0.32,
   atomCaptureSpeed: 0.9, // velocità con cui “cattura” (0..1 per sec circa)
   atomPullStrength: 2.0,
   atomOrbitStrength: 1.1,
