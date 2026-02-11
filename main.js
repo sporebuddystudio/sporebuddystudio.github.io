@@ -184,24 +184,29 @@ function wrapCameraSpaceLocal(px, py, pz) {
   // world -> camera
   _cPos.copy(_wPos).applyMatrix4(camera.matrixWorldInverse);
 
-  // davanti = z negativo
-  const depth = Math.max(0.25, -_cPos.z);
+  // Z wrap in camera-space (modulare, no “snap”)
+  const zNear = -CFG.PARTICLES.depthNear;
+  const zFar  = -CFG.PARTICLES.depthFar;
+  const zSpan = (zNear - zFar); // positivo
 
+  if (_cPos.z > zNear) _cPos.z -= zSpan;
+  else if (_cPos.z < zFar) _cPos.z += zSpan;
+
+  // calcola bounds visibili alla profondità corrente (dopo wrap Z)
+  const depth = Math.max(0.25, -_cPos.z);
   const halfH = Math.tan(_halfFovRad) * depth;
   const halfW = halfH * camera.aspect;
 
-  // wrap X/Y
-  if (_cPos.x > halfW) _cPos.x = -halfW;
-  else if (_cPos.x < -halfW) _cPos.x = halfW;
+  const spanW = halfW * 2;
+  const spanH = halfH * 2;
 
-  if (_cPos.y > halfH) _cPos.y = -halfH;
-  else if (_cPos.y < -halfH) _cPos.y = halfH;
+  // X wrap modulare (mantiene offset)
+  if (_cPos.x > halfW) _cPos.x -= spanW;
+  else if (_cPos.x < -halfW) _cPos.x += spanW;
 
-  // ✅ wrap Z in camera-space usando depthNear/depthFar
-  const zNear = -CFG.PARTICLES.depthNear;
-  const zFar  = -CFG.PARTICLES.depthFar;
-  if (_cPos.z > zNear) _cPos.z = zFar;
-  else if (_cPos.z < zFar) _cPos.z = zNear;
+  // Y wrap modulare (mantiene offset)
+  if (_cPos.y > halfH) _cPos.y -= spanH;
+  else if (_cPos.y < -halfH) _cPos.y += spanH;
 
   // camera -> world
   _wPos.copy(_cPos).applyMatrix4(camera.matrixWorld);
