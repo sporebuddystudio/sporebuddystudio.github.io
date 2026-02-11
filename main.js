@@ -20,7 +20,7 @@ for (let i = 0; i < COUNT; i++) {
   positions[i3 + 0] = (Math.random() - 0.5) * 24; // x
   positions[i3 + 1] = (Math.random() - 0.5) * 14; // y
   positions[i3 + 2] = (Math.random() - 0.5) * 24; // z
-  sizes[i] = 0.6 + Math.random() * 0.5;
+  sizes[i] = 0.6 + Math.random() * 0.1;
 }
 
 const geo = new THREE.BufferGeometry();
