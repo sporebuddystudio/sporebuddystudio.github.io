@@ -28,25 +28,27 @@ const CFG = {
   // mouse influence (repulsione + colore)
   influenceRadius: 2.8,
   repulseStrength: 1.45,
-  colorSmooth: 9.0,           // smoothing colore (più alto = più rapido)
+  colorSmooth: 9.0, // smoothing colore (più alto = più rapido)
 
   // atom mode (click)
   atomCaptureRadius: 3.0,
-  atomCaptureSpeed: 0.9,      // velocità con cui “cattura” (0..1 per sec circa)
+  atomCaptureSpeed: 0.9, // velocità con cui “cattura” (0..1 per sec circa)
   atomPullStrength: 2.0,
   atomOrbitStrength: 1.1,
-  atomReleaseSpeed: 0.25,     // se atom mode OFF, quanto rilascia
-  atomBoostMax: 1.45,         // quanto diventa “acceso” il colore base quando catturato
+  atomReleaseSpeed: 0.25, // se atom mode OFF, quanto rilascia
+  atomBoostMax: 1.45, // quanto diventa “acceso” il colore base quando catturato
 
   // look
   baseColor: new THREE.Color(0x3fd0c9),
   hoverColor: new THREE.Color(0xffffff),
-  size: 0.06,                 // dimensione base spore
+  size: 0.06, // dimensione base spore
   opacity: 0.85,
 };
 
 // ------------- Helpers -------------
-function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
 function smoothstep(a, b, x) {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
@@ -54,7 +56,8 @@ function smoothstep(a, b, x) {
 
 // gaussian-ish random (Box-Muller)
 function randN() {
-  let u = 0, v = 0;
+  let u = 0,
+    v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
@@ -72,11 +75,11 @@ function makeSoftDotTexture(sizePx = 128) {
 
   // Radial gradient: core + halo morbido
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  g.addColorStop(0.00, "rgba(255,255,255,1.00)");
+  g.addColorStop(0.0, "rgba(255,255,255,1.00)");
   g.addColorStop(0.12, "rgba(255,255,255,0.95)");
-  g.addColorStop(0.30, "rgba(255,255,255,0.35)");
+  g.addColorStop(0.3, "rgba(255,255,255,0.35)");
   g.addColorStop(0.55, "rgba(255,255,255,0.10)");
-  g.addColorStop(1.00, "rgba(255,255,255,0.00)");
+  g.addColorStop(1.0, "rgba(255,255,255,0.00)");
 
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, sizePx, sizePx);
@@ -143,40 +146,58 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 scene.add(points);
 
-// ------------- Mouse world on z=0 plane -------------
-const mouseNDC = new THREE.Vector2(0, 0);
-const raycaster = new THREE.Raycaster();
-const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+// ------------- Mouse world on z=0 plane (NO raycaster, NO NaN) -------------
 const mouseWorld = new THREE.Vector3(0, 0, 0);
+const ndc3 = new THREE.Vector3(0, 0, 0);
 
-let targetParX = 0, targetParY = 0;
-let curParX = 0, curParY = 0;
+let targetParX = 0,
+  targetParY = 0;
+let curParX = 0,
+  curParY = 0;
 
 function updateMouseWorld(nx, ny) {
-  mouseNDC.set(nx, ny);
-  raycaster.setFromCamera(mouseNDC, camera);
-  raycaster.ray.intersectPlane(planeZ, mouseWorld);
+  // NDC -> World on plane z=0
+  ndc3.set(nx, ny, 0.5);
+  ndc3.unproject(camera);
+
+  const dir = ndc3.sub(camera.position).normalize();
+
+  // if dir.z is ~0, avoid division by zero
+  const dz = dir.z;
+  if (Math.abs(dz) < 1e-6) return;
+
+  const distance = -camera.position.z / dz;
+  mouseWorld.copy(camera.position).add(dir.multiplyScalar(distance));
 }
 
-window.addEventListener("pointermove", (e) => {
-  const w = window.innerWidth || 1;
-  const h = window.innerHeight || 1;
+window.addEventListener(
+  "pointermove",
+  (e) => {
+    const w = window.innerWidth || 1;
+    const h = window.innerHeight || 1;
 
-  const nx = (e.clientX / w) * 2 - 1;
-  const ny = (e.clientY / h) * 2 - 1;
+    const nx = (e.clientX / w) * 2 - 1;
+    const ny = (e.clientY / h) * 2 - 1;
 
-  targetParX = nx;
-  targetParY = ny;
+    targetParX = nx;
+    targetParY = ny;
 
-  updateMouseWorld(nx, -ny);
-}, { passive: true });
+    // IMPORTANT: no invert here
+    updateMouseWorld(nx, -ny);
+  },
+  { passive: true }
+);
 
 // ------------- Atom mode toggle -------------
 let atomMode = false;
-window.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
-  atomMode = !atomMode;
-}, { passive: true });
+window.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button !== 0) return;
+    atomMode = !atomMode;
+  },
+  { passive: true }
+);
 
 // ------------- Resize -------------
 function resize() {
@@ -264,7 +285,7 @@ function tick() {
       const inv = 1.0 / (d + 0.0001);
 
       // pull verso il raggio target
-      const err = (d - atomRadius[i]);
+      const err = d - atomRadius[i];
       const pull = -err * CFG.atomPullStrength * a;
       vx += dx * inv * pull * dt;
       vy += dy * inv * pull * dt;
@@ -304,13 +325,11 @@ function tick() {
     velocities[i3 + 2] = vz;
 
     // --- smooth color ---
-    // base boosted if captured
     const boost = 1.0 + a * (CFG.atomBoostMax - 1.0);
     const br = Math.min(1.0, CFG.baseColor.r * boost);
     const bg = Math.min(1.0, CFG.baseColor.g * boost);
     const bb = Math.min(1.0, CFG.baseColor.b * boost);
 
-    // blend to hover in influence area
     const tr = br + (CFG.hoverColor.r - br) * influence;
     const tg = bg + (CFG.hoverColor.g - bg) * influence;
     const tb = bb + (CFG.hoverColor.b - bb) * influence;
