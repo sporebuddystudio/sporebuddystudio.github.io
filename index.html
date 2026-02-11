@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SporeBuddy</title>
+  <style>
+    html, body { margin: 0; height: 100%; background:#0f1115; overflow:hidden; font-family: system-ui, Arial; }
+    #ui {
+      position: absolute; z-index: 10; left: 28px; top: 24px; max-width: 520px;
+      color: #e8eef6;
+    }
+    #ui h1 { margin: 0 0 8px; font-size: 56px; letter-spacing: -0.02em; }
+    #ui p { margin: 8px 0; opacity: 0.9; font-size: 16px; line-height: 1.4; }
+    #ui a { color: #3fd0c9; text-decoration: none; }
+    #ui a:hover { text-decoration: underline; }
+    #c { width: 100%; height: 100%; touch-action: none; display:block; }
+    .pill { display:inline-block; margin-top:10px; padding:6px 10px; border:1px solid rgba(255,255,255,.14);
+      border-radius: 999px; font-size: 13px; opacity: .9; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>SporeBuddy</h1>
+    <p>Creative real-time studio working on tools, games and 3D assets.</p>
+    <p class="pill">Support: <a href="mailto:sporebuddy.studio@gmail.com">sporebuddy.studio@gmail.com</a></p>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <!-- Babylon via CDN -->
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
