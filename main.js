@@ -16,6 +16,9 @@ const CFG = {
     driftXY: 0.02,
     driftZ: 0.01,
 
+    // 👇 COLORE BASE DELLE PARTICELLE (CAMBIA QUI)
+    color: 0x3fd0c9,
+
     // material
     size: 0.12,
     opacity: 1.0,
@@ -24,14 +27,14 @@ const CFG = {
     sizeAttenuation: true,
 
     // sprite / texture
-    texSizePx: 256,        // più grande = più definito/smooth
-    haloInner: 0.12,       // 0..1
-    haloMid: 0.55,         // 0..1
-    haloAlphaMid: 0.22,    // 0..1
-    haloAlphaInner: 0.60,  // 0..1
-    coreRadius: 1.11,      // 0..1 (relativo al raggio del canvas)
-    coreAlpha: 1.0,        // 0..1
-    coreSoftness: 0.03,    // 0..1 (bordo morbido del core)
+    texSizePx: 256,
+    haloInner: 0.42,
+    haloMid: 0.75,
+    haloAlphaMid: 0.22,
+    haloAlphaInner: 0.60,
+    coreRadius: 0.31,
+    coreAlpha: 1.0,
+    coreSoftness: 0.03,
   },
 
   ROT: {
@@ -51,8 +54,6 @@ const renderer = new THREE.WebGLRenderer({
 
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-
-// niente clear nero: lascia vedere il background HTML
 renderer.setClearColor(0x000000, 0);
 
 /* ---------------- scene & camera ---------------- */
@@ -78,8 +79,8 @@ window.addEventListener("resize", () => {
 /* ---------------- texture (core + halo) ---------------- */
 
 function makeSoftDotTexture(p) {
-  const sizePx = p.texSizePx ?? 256;
 
+  const sizePx = p.texSizePx;
   const c = document.createElement("canvas");
   c.width = c.height = sizePx;
   const ctx = c.getContext("2d");
@@ -90,44 +91,35 @@ function makeSoftDotTexture(p) {
 
   ctx.clearRect(0, 0, sizePx, sizePx);
 
-  // 1) HALO: alone morbido grande
+  // HALO
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
 
-  const haloAlphaInner = Math.min(1, Math.max(0, p.haloAlphaInner));
-  const haloAlphaMid = Math.min(1, Math.max(0, p.haloAlphaMid));
-
-  g.addColorStop(0.0, `rgba(255,255,255,${haloAlphaInner})`);
-  g.addColorStop(Math.min(1, Math.max(0.0001, p.haloInner)), `rgba(255,255,255,${haloAlphaMid})`);
-  g.addColorStop(Math.min(1, Math.max(0.0001, p.haloMid)), `rgba(255,255,255,${haloAlphaMid * 0.35})`);
-  g.addColorStop(1.0, "rgba(255,255,255,0.00)");
+  g.addColorStop(0.0, `rgba(255,255,255,${p.haloAlphaInner})`);
+  g.addColorStop(p.haloInner, `rgba(255,255,255,${p.haloAlphaMid})`);
+  g.addColorStop(p.haloMid, `rgba(255,255,255,${p.haloAlphaMid * 0.35})`);
+  g.addColorStop(1.0, "rgba(255,255,255,0.0)");
 
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, sizePx, sizePx);
 
-  // 2) CORE: disco pieno brillante + bordo soft
-  const coreAlpha = Math.min(1, Math.max(0, p.coreAlpha));
-  const coreR = r * Math.min(1, Math.max(0.001, p.coreRadius));
-  const soft = r * Math.min(1, Math.max(0.0, p.coreSoftness));
+  // CORE
+  const coreR = r * p.coreRadius;
 
-  // Disco pieno
   ctx.beginPath();
   ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
   ctx.closePath();
-  ctx.fillStyle = `rgba(255,255,255,${coreAlpha})`;
+  ctx.fillStyle = `rgba(255,255,255,${p.coreAlpha})`;
   ctx.fill();
 
-  // Bordo morbido (corona sfumata)
-  if (soft > 0.0001) {
-    const g2 = ctx.createRadialGradient(cx, cy, coreR, cx, cy, coreR + soft);
-    g2.addColorStop(0.0, `rgba(255,255,255,${coreAlpha})`);
-    g2.addColorStop(1.0, "rgba(255,255,255,0.0)");
+  const g2 = ctx.createRadialGradient(cx, cy, coreR, cx, cy, coreR + r * p.coreSoftness);
+  g2.addColorStop(0.0, `rgba(255,255,255,${p.coreAlpha})`);
+  g2.addColorStop(1.0, "rgba(255,255,255,0.0)");
 
-    ctx.fillStyle = g2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, coreR + soft, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
-  }
+  ctx.fillStyle = g2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR + r * p.coreSoftness, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.fill();
 
   const tex = new THREE.CanvasTexture(c);
   tex.minFilter = THREE.LinearMipMapLinearFilter;
@@ -148,7 +140,7 @@ const positions = new Float32Array(COUNT * 3);
 const colors = new Float32Array(COUNT * 3);
 const velocities = new Float32Array(COUNT * 3);
 
-const baseColor = new THREE.Color(0x6fd3ff);
+const baseColor = new THREE.Color(CFG.PARTICLES.color);
 
 for (let i = 0; i < COUNT; i++) {
 
@@ -206,22 +198,18 @@ function update(dt) {
     let vy = velocities[i3+1];
     let vz = velocities[i3+2];
 
-    // drift
     vx += (Math.random()-0.5) * CFG.PARTICLES.driftXY * dt;
     vy += (Math.random()-0.5) * CFG.PARTICLES.driftXY * dt;
     vz += (Math.random()-0.5) * CFG.PARTICLES.driftZ  * dt;
 
-    // integrate
     px += vx * dt;
     py += vy * dt;
     pz += vz * dt;
 
-    // bounds bounce
     if (px > bounds || px < -bounds) vx *= -1;
     if (py > bounds || py < -bounds) vy *= -1;
     if (pz > bounds || pz < -bounds) vz *= -1;
 
-    // damping
     vx *= damping;
     vy *= damping;
     vz *= damping;
@@ -249,7 +237,6 @@ function loop(now) {
 
   update(dt);
 
-  // slow organic rotation
   points.rotation.y += CFG.ROT.y * dt;
   points.rotation.x += CFG.ROT.x * dt;
 
