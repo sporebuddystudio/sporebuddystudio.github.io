@@ -26,7 +26,7 @@ const CFG = {
   drift: 0.012,
 
   // mouse influence (NDC units)
-  influenceRadius: 0.45,      // PATCH: era 0.28 (troppo piccolo, sembra “non funziona”)
+  influenceRadius: 10.45,      // PATCH: era 0.28 (troppo piccolo, sembra “non funziona”)
   repulseStrength: 2.2,       // PATCH: più evidente
   colorSmooth: 9.0,
 
