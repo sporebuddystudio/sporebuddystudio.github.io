@@ -11,7 +11,7 @@ const CFG = {
     spreadZ: 10,
 
     // simulation
-    bounds: 8,
+    bounds: 8,       // (non usato più per il box; lo lasciamo ma puoi eliminarlo)
     damping: 0.98,
     driftXY: 0.02,
     driftZ: 0.01,
@@ -177,13 +177,55 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 scene.add(points);
 
+/* ---------------- screen-fog wrap helpers (camera-space) ---------------- */
+
+const _wPos = new THREE.Vector3();
+const _cPos = new THREE.Vector3();
+const _lPos = new THREE.Vector3();
+const _invPoints = new THREE.Matrix4();
+
+const _halfFovRad = THREE.MathUtils.degToRad(camera.fov * 0.5);
+
+function wrapCameraSpaceLocal(px, py, pz) {
+  // local -> world (rispetta points.rotation)
+  _lPos.set(px, py, pz);
+  _wPos.copy(_lPos).applyMatrix4(points.matrixWorld);
+
+  // world -> camera space
+  _cPos.copy(_wPos).applyMatrix4(camera.matrixWorldInverse);
+
+  // camera guarda verso -Z; davanti = z negativo in camera space
+  const depth = Math.max(0.25, -_cPos.z);
+
+  // dimensioni visibili a questa profondità
+  const halfH = Math.tan(_halfFovRad) * depth;
+  const halfW = halfH * camera.aspect;
+
+  // wrap X/Y
+  if (_cPos.x > halfW) _cPos.x = -halfW;
+  else if (_cPos.x < -halfW) _cPos.x = halfW;
+
+  if (_cPos.y > halfH) _cPos.y = -halfH;
+  else if (_cPos.y < -halfH) _cPos.y = halfH;
+
+  // camera -> world
+  _wPos.copy(_cPos).applyMatrix4(camera.matrixWorld);
+
+  // world -> local
+  _invPoints.copy(points.matrixWorld).invert();
+  _lPos.copy(_wPos).applyMatrix4(_invPoints);
+
+  return _lPos;
+}
+
 /* ---------------- simulation ---------------- */
 
 let lastTime = performance.now();
 
 function update(dt) {
 
-  const bounds = CFG.PARTICLES.bounds;
+  points.updateMatrixWorld(true);
+
   const damping = CFG.PARTICLES.damping;
 
   for (let i = 0; i < COUNT; i++) {
@@ -206,9 +248,15 @@ function update(dt) {
     py += vy * dt;
     pz += vz * dt;
 
-    if (px > bounds || px < -bounds) vx *= -1;
-    if (py > bounds || py < -bounds) vy *= -1;
-    if (pz > bounds || pz < -bounds) vz *= -1;
+    // --- screen-fog wrap (wrap X/Y sui bordi visibili della camera) ---
+    const wrapped = wrapCameraSpaceLocal(px, py, pz);
+    px = wrapped.x;
+    py = wrapped.y;
+
+    // Z: manteniamo profondità volumetrica con wrap semplice su spreadZ
+    const zHalf = CFG.PARTICLES.spreadZ * 0.5;
+    if (pz > zHalf) pz = -zHalf;
+    else if (pz < -zHalf) pz = zHalf;
 
     vx *= damping;
     vy *= damping;
