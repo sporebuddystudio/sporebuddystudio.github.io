@@ -19,18 +19,18 @@ const CFG = {
   spreadZ: 8,
 
   // densità centro: più basso = più denso
-  centerSigma: 0.05,
+  centerSigma: 0.25, // PATCH: era 0.05 (troppo concentrato)
 
   // dinamica
   damping: 0.92,
   drift: 0.012,
 
-  // mouse influence (repulsione + colore)
+  // mouse influence (repulsione + colore)  [NDC units]
   influenceRadius: 0.28,
   repulseStrength: 1.45,
   colorSmooth: 9.0, // smoothing colore (più alto = più rapido)
 
-  // atom mode (click)
+  // atom mode (click) [NDC units]
   atomCaptureRadius: 0.32,
   atomCaptureSpeed: 0.9, // velocità con cui “cattura” (0..1 per sec circa)
   atomPullStrength: 2.0,
@@ -41,7 +41,7 @@ const CFG = {
   // look
   baseColor: new THREE.Color(0x3fd0c9),
   hoverColor: new THREE.Color(0xffffff),
-  size: 1, // dimensione base spore
+  size: 0.08, // PATCH: era 1 (gigante, impastava tutto)
   opacity: 0.85,
 };
 
@@ -73,7 +73,6 @@ function makeSoftDotTexture(sizePx = 128) {
   const cy = sizePx / 2;
   const r = sizePx / 2;
 
-  // Radial gradient: core + halo morbido
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
   g.addColorStop(0.0, "rgba(255,255,255,1.00)");
   g.addColorStop(0.12, "rgba(255,255,255,0.95)");
@@ -107,7 +106,6 @@ const atomRadius = new Float32Array(N);
 for (let i = 0; i < N; i++) {
   const i3 = i * 3;
 
-  // densità al centro
   const gx = randN() * CFG.centerSigma;
   const gy = randN() * CFG.centerSigma;
   const gz = randN() * CFG.centerSigma;
@@ -146,7 +144,9 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 scene.add(points);
 
-// ------------- Mouse world on z=0 plane (NO raycaster, NO NaN) -------------
+// ------------------------------------------------------------
+// Mouse + Parallax state
+// ------------------------------------------------------------
 const mouseWorld = new THREE.Vector3(0, 0, 0);
 const ndc3 = new THREE.Vector3(0, 0, 0);
 
@@ -155,14 +155,17 @@ let targetParX = 0,
 let curParX = 0,
   curParY = 0;
 
+// PATCH: declare BEFORE pointer events (order)
+const tmpV3 = new THREE.Vector3();
+let mouseNX = 0,
+  mouseNY = 0; // mouse in NDC
+
 function updateMouseWorld(nx, ny) {
   // NDC -> World on plane z=0
   ndc3.set(nx, ny, 0.5);
   ndc3.unproject(camera);
 
   const dir = ndc3.sub(camera.position).normalize();
-
-  // if dir.z is ~0, avoid division by zero
   const dz = dir.z;
   if (Math.abs(dz) < 1e-6) return;
 
@@ -179,13 +182,13 @@ window.addEventListener(
     const nx = (e.clientX / w) * 2 - 1;
     const ny = (e.clientY / h) * 2 - 1;
 
+    // PATCH: keep mouse in NDC (Y inverted for project())
     mouseNX = nx;
-    mouseNY = -ny; // attenzione: NDC Y è invertito rispetto a screen
-    
+    mouseNY = -ny;
+
     targetParX = nx;
     targetParY = ny;
 
-    // IMPORTANT: no invert here
     updateMouseWorld(nx, -ny);
   },
   { passive: true }
@@ -214,10 +217,6 @@ window.addEventListener("resize", resize);
 resize();
 
 // ------------- Loop -------------
-
-const tmpV3 = new THREE.Vector3();
-let mouseNX = 0, mouseNY = 0; // mouse in NDC ([-1..1])
-
 const clock = new THREE.Clock();
 
 function tick() {
@@ -254,17 +253,23 @@ function tick() {
     vy += Math.cos(t * 0.33 + py * 0.19) * CFG.drift * dt * 60;
     vz += Math.sin(t * 0.27 + pz * 0.14) * (CFG.drift * 0.7) * dt * 60;
 
-    // distanza mouse (nel piano)
-    tmpV3.set(px, py, pz).project(camera); // tmpV3.x/y ora sono in NDC
-    const dx = tmpV3.x - mouseNX;
-    const dy = tmpV3.y - mouseNY;
-    const d2 = dx * dx + dy * dy;
+    // --------------------------------------------------------
+    // PATCH: screen-space distance for "area under mouse"
+    // --------------------------------------------------------
+    tmpV3.set(px, py, pz).project(camera);
+    const sx = tmpV3.x - mouseNX;
+    const sy = tmpV3.y - mouseNY;
+    const sd2 = sx * sx + sy * sy;
 
+    // world-space vector for actual forces (so movement is real)
+    const wx = px - mouseWorld.x;
+    const wy = py - mouseWorld.y;
+    const wd2 = wx * wx + wy * wy;
 
-    // --- atom capture/release ---
+    // --- atom capture/release (screen-space) ---
     if (atomMode) {
-      if (d2 < capR2) {
-        const d = Math.sqrt(d2);
+      if (sd2 < capR2) {
+        const d = Math.sqrt(sd2);
         const w = 1.0 - smoothstep(0.0, capR, d);
         atom[i] = Math.min(1, atom[i] + w * CFG.atomCaptureSpeed * dt);
       } else {
@@ -274,34 +279,33 @@ function tick() {
       atom[i] = Math.max(0, atom[i] - CFG.atomReleaseSpeed * dt);
     }
 
-    // --- repulsione + hover color ---
+    // --- repulsione + hover color (screen falloff, world force) ---
     let influence = 0;
-    if (d2 < r2) {
-      const d = Math.sqrt(d2);
+    if (sd2 < r2) {
+      const d = Math.sqrt(sd2);
       influence = 1.0 - smoothstep(0.0, r, d);
 
-      const inv = 1.0 / (d + 0.0001);
-      const repel = influence * CFG.repulseStrength;
+      const wd = Math.sqrt(wd2);
+      const winv = 1.0 / (wd + 0.0001);
 
-      vx += dx * inv * repel * dt;
-      vy += dy * inv * repel * dt;
+      const repel = influence * CFG.repulseStrength;
+      vx += wx * winv * repel * dt;
+      vy += wy * winv * repel * dt;
     }
 
-    // --- atom dynamics: pull verso ring + orbit ---
+    // --- atom dynamics: pull verso ring + orbit (WORLD) ---
     const a = atom[i];
     if (a > 0.001) {
-      const d = Math.sqrt(d2);
-      const inv = 1.0 / (d + 0.0001);
+      const wd = Math.sqrt(wd2);
+      const winv = 1.0 / (wd + 0.0001);
 
-      // pull verso il raggio target
-      const err = d - atomRadius[i];
+      const err = wd - atomRadius[i];
       const pull = -err * CFG.atomPullStrength * a;
-      vx += dx * inv * pull * dt;
-      vy += dy * inv * pull * dt;
+      vx += wx * winv * pull * dt;
+      vy += wy * winv * pull * dt;
 
-      // orbit (tangente)
-      const tx = -dy * inv;
-      const ty = dx * inv;
+      const tx = -wy * winv;
+      const ty = wx * winv;
       const orbit = CFG.atomOrbitStrength * a;
       vx += tx * orbit * dt;
       vy += ty * orbit * dt;
@@ -333,7 +337,7 @@ function tick() {
     velocities[i3 + 1] = vy;
     velocities[i3 + 2] = vz;
 
-    // --- smooth color ---
+    // --- smooth color (uses influence from screen-space) ---
     const boost = 1.0 + a * (CFG.atomBoostMax - 1.0);
     const br = Math.min(1.0, CFG.baseColor.r * boost);
     const bg = Math.min(1.0, CFG.baseColor.g * boost);
