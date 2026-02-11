@@ -10,12 +10,8 @@
     #ui {
       position: absolute; z-index: 10; left: 28px; top: 24px; max-width: 520px;
       color: #e8eef6;
-
-      /* PATCH: non blocca mouse sul canvas */
-      pointer-events: none;
+      pointer-events: none; /* IMPORTANT */
     }
-
-    /* PATCH: i link restano cliccabili */
     #ui a { pointer-events: auto; }
 
     #ui h1 { margin: 0 0 8px; font-size: 56px; letter-spacing: -0.02em; }
@@ -30,6 +26,23 @@
       border:1px solid rgba(255,255,255,.14);
       border-radius: 999px; font-size: 13px; opacity: .9;
     }
+
+    /* Debug HUD */
+    #dbg {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      z-index: 20;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.85);
+      font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      pointer-events: none;
+      white-space: pre;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -39,6 +52,7 @@
     <p class="pill">Support: <a href="mailto:sporebuddy.studio@gmail.com">sporebuddy.studio@gmail.com</a></p>
   </div>
 
+  <div id="dbg">loading...</div>
   <canvas id="c"></canvas>
 
   <script type="module" src="main.js"></script>
