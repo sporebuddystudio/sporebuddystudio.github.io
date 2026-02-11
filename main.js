@@ -42,6 +42,7 @@ const CFG = {
     coreSoftness: 0.03,
   },
 
+  // ROT lasciato nel CFG ma non usato (così se vorrai rimetterla è facile)
   ROT: {
     y: 0.03,
     x: 0.015,
@@ -163,6 +164,7 @@ const mat = new THREE.PointsMaterial({
 });
 
 const points = new THREE.Points(geo, mat);
+points.rotation.set(0, 0, 0); // ✅ niente rotazione “blocco unico”
 scene.add(points);
 
 /* ---------------- screen-fog wrap helpers (camera-space) ---------------- */
@@ -175,17 +177,16 @@ const _invPoints = new THREE.Matrix4();
 const _halfFovRad = THREE.MathUtils.degToRad(camera.fov * 0.5);
 
 function wrapCameraSpaceLocal(px, py, pz) {
-  // local -> world (rispetta points.rotation)
+  // local -> world
   _lPos.set(px, py, pz);
   _wPos.copy(_lPos).applyMatrix4(points.matrixWorld);
 
-  // world -> camera space
+  // world -> camera
   _cPos.copy(_wPos).applyMatrix4(camera.matrixWorldInverse);
 
-  // camera guarda verso -Z; davanti = z negativo
+  // davanti = z negativo
   const depth = Math.max(0.25, -_cPos.z);
 
-  // dimensioni visibili a questa profondità
   const halfH = Math.tan(_halfFovRad) * depth;
   const halfW = halfH * camera.aspect;
 
@@ -213,38 +214,31 @@ const _spawnWorld = new THREE.Vector3();
 const _spawnLocal = new THREE.Vector3();
 
 function spawnInCameraFrustumLocal() {
-  // aggiorna matrici (importante se points ruota)
   points.updateMatrixWorld(true);
 
-  // scegli una profondità davanti alla camera
   const depth = THREE.MathUtils.lerp(
     CFG.PARTICLES.depthNear,
     CFG.PARTICLES.depthFar,
     Math.random()
   );
 
-  // dimensioni del frustum a quella profondità
   const halfH = Math.tan(_halfFovRad) * depth;
   const halfW = halfH * camera.aspect;
 
-  // posizione random in camera-space
   _spawnCam.set(
     (Math.random() * 2 - 1) * halfW,
     (Math.random() * 2 - 1) * halfH,
-    -depth // davanti alla camera
+    -depth
   );
 
-  // camera -> world
   _spawnWorld.copy(_spawnCam).applyMatrix4(camera.matrixWorld);
 
-  // world -> local (del Points)
   _invPoints.copy(points.matrixWorld).invert();
   _spawnLocal.copy(_spawnWorld).applyMatrix4(_invPoints);
 
   return _spawnLocal;
 }
 
-// inizializzazione PARTICELLE (spawn corretto)
 for (let i = 0; i < COUNT; i++) {
   const i3 = i * 3;
 
@@ -262,7 +256,6 @@ for (let i = 0; i < COUNT; i++) {
   colors[i3 + 2] = baseColor.b;
 }
 
-// segnala che le geometry attrib sono pronti
 geo.getAttribute("position").needsUpdate = true;
 geo.getAttribute("color").needsUpdate = true;
 
@@ -296,12 +289,12 @@ function update(dt) {
     py += vy * dt;
     pz += vz * dt;
 
-    // screen-fog wrap X/Y
+    // wrap X/Y in camera-space
     const wrapped = wrapCameraSpaceLocal(px, py, pz);
     px = wrapped.x;
     py = wrapped.y;
 
-    // Z: wrap sul range di profondità in modo coerente con lo spawn
+    // wrap Z sul range di profondità coerente con lo spawn
     const zNear = -CFG.PARTICLES.depthNear;
     const zFar = -CFG.PARTICLES.depthFar;
     if (pz > zNear) pz = zFar;
@@ -334,8 +327,9 @@ function loop(now) {
 
   update(dt);
 
-  points.rotation.y += CFG.ROT.y * dt;
-  points.rotation.x += CFG.ROT.x * dt;
+  // ✅ NIENTE rotazione del container: muovono solo le singole particelle
+  // points.rotation.y += CFG.ROT.y * dt;
+  // points.rotation.x += CFG.ROT.x * dt;
 
   renderer.render(scene, camera);
 
