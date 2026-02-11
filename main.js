@@ -197,6 +197,12 @@ function wrapCameraSpaceLocal(px, py, pz) {
   if (_cPos.y > halfH) _cPos.y = -halfH;
   else if (_cPos.y < -halfH) _cPos.y = halfH;
 
+  // ✅ wrap Z in camera-space usando depthNear/depthFar
+  const zNear = -CFG.PARTICLES.depthNear;
+  const zFar  = -CFG.PARTICLES.depthFar;
+  if (_cPos.z > zNear) _cPos.z = zFar;
+  else if (_cPos.z < zFar) _cPos.z = zNear;
+
   // camera -> world
   _wPos.copy(_cPos).applyMatrix4(camera.matrixWorld);
 
@@ -289,16 +295,11 @@ function update(dt) {
     py += vy * dt;
     pz += vz * dt;
 
-    // wrap X/Y in camera-space
+    // wrap X/Y/Z in camera-space
     const wrapped = wrapCameraSpaceLocal(px, py, pz);
     px = wrapped.x;
     py = wrapped.y;
-
-    // wrap Z sul range di profondità coerente con lo spawn
-    const zNear = -CFG.PARTICLES.depthNear;
-    const zFar = -CFG.PARTICLES.depthFar;
-    if (pz > zNear) pz = zFar;
-    else if (pz < zFar) pz = zNear;
+    pz = wrapped.z;
 
     vx *= damping;
     vy *= damping;
