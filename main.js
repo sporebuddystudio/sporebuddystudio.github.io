@@ -29,7 +29,7 @@ const CFG = {
     haloMid: 0.55,         // 0..1
     haloAlphaMid: 0.22,    // 0..1
     haloAlphaInner: 0.60,  // 0..1
-    coreRadius: 0.11,      // 0..1 (relativo al raggio del canvas)
+    coreRadius: 1.11,      // 0..1 (relativo al raggio del canvas)
     coreAlpha: 1.0,        // 0..1
     coreSoftness: 0.03,    // 0..1 (bordo morbido del core)
   },
