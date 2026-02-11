@@ -21,7 +21,6 @@ const CFG = {
     opacity:1.0,
     blending:THREE.AdditiveBlending,
     depthWrite:false,
-    sizeAttenuation:true,
 
     texSizePx:256,
     haloInner:0.42,
@@ -69,8 +68,6 @@ window.addEventListener("resize",()=>{
    PARTICLE TEXTURE
    ========================================================= */
 
-function clamp01(v){return Math.min(1,Math.max(0,v));}
-
 function makeSoftDotTexture(p){
   const size=p.texSizePx;
   const c=document.createElement("canvas");
@@ -78,10 +75,8 @@ function makeSoftDotTexture(p){
   const ctx=c.getContext("2d");
 
   const cx=size/2, cy=size/2, r=size/2;
-
   ctx.clearRect(0,0,size,size);
 
-  // halo
   const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
   g.addColorStop(0,`rgba(255,255,255,${p.haloAlphaInner})`);
   g.addColorStop(p.haloInner,`rgba(255,255,255,${p.haloAlphaMid})`);
@@ -91,9 +86,7 @@ function makeSoftDotTexture(p){
   ctx.fillStyle=g;
   ctx.fillRect(0,0,size,size);
 
-  // core
   const coreR=r*p.coreRadius;
-
   ctx.beginPath();
   ctx.arc(cx,cy,coreR,0,Math.PI*2);
   ctx.fillStyle=`rgba(255,255,255,${p.coreAlpha})`;
@@ -121,6 +114,33 @@ function makeSoftDotTexture(p){
 
 let COUNT=0,positions,colors,velocities,geo,mat,points,dotTex;
 const baseColor=new THREE.Color(CFG.PARTICLES.color);
+
+function screenToWorld(xNDC,yNDC,depth){
+
+  const v=new THREE.Vector3(xNDC,yNDC,-1);
+  v.unproject(camera);
+
+  const dir=v.sub(camera.position).normalize();
+  return camera.position.clone().add(dir.multiplyScalar(depth));
+}
+
+/* ---------- UNIFORM SCREEN SPAWN (LA PATCH IMPORTANTE) ---------- */
+
+function spawnParticle(i3){
+
+  const depth=THREE.MathUtils.lerp(CFG.PARTICLES.depthNear,CFG.PARTICLES.depthFar,Math.random());
+
+  const xNDC=Math.random()*2-1;
+  const yNDC=Math.random()*2-1;
+
+  const w=screenToWorld(xNDC,yNDC,depth);
+
+  positions[i3]=w.x;
+  positions[i3+1]=w.y;
+  positions[i3+2]=w.z;
+}
+
+/* ========================================================= */
 
 function rebuildAll(){
 
@@ -157,26 +177,14 @@ function rebuildAll(){
   reseedParticles();
 }
 
-function rebuildTexture(){
-  dotTex.dispose();
-  dotTex=makeSoftDotTexture(CFG.PARTICLES);
-  mat.map=dotTex;
-  mat.needsUpdate=true;
-}
-
 function reseedParticles(){
+
   baseColor.set(CFG.PARTICLES.color);
 
   for(let i=0;i<COUNT;i++){
     const i3=i*3;
 
-    const depth=THREE.MathUtils.lerp(CFG.PARTICLES.depthNear,CFG.PARTICLES.depthFar,Math.random());
-    const halfH=Math.tan(THREE.MathUtils.degToRad(camera.fov*0.5))*depth;
-    const halfW=halfH*camera.aspect;
-
-    positions[i3]=(Math.random()*2-1)*halfW;
-    positions[i3+1]=(Math.random()*2-1)*halfH;
-    positions[i3+2]=-depth;
+    spawnParticle(i3);
 
     velocities[i3]=(Math.random()-0.5)*0.15;
     velocities[i3+1]=(Math.random()-0.5)*0.15;
@@ -192,31 +200,6 @@ function reseedParticles(){
 }
 
 /* =========================================================
-   LIVE UPDATE
-   ========================================================= */
-
-function applyLive(){
-
-  camera.fov=CFG.CAMERA.fov;
-  camera.position.z=CFG.CAMERA.z;
-  camera.updateProjectionMatrix();
-
-  mat.size=CFG.PARTICLES.size;
-  mat.opacity=CFG.PARTICLES.opacity;
-  mat.needsUpdate=true;
-
-  // aggiorna colore realtime
-  baseColor.set(CFG.PARTICLES.color);
-  for(let i=0;i<COUNT;i++){
-    const i3=i*3;
-    colors[i3]=baseColor.r;
-    colors[i3+1]=baseColor.g;
-    colors[i3+2]=baseColor.b;
-  }
-  geo.getAttribute("color").needsUpdate=true;
-}
-
-/* =========================================================
    SIMULATION
    ========================================================= */
 
@@ -225,6 +208,7 @@ let last=performance.now();
 function update(dt){
 
   for(let i=0;i<COUNT;i++){
+
     const i3=i*3;
 
     let px=positions[i3];
@@ -260,65 +244,6 @@ function update(dt){
 }
 
 /* =========================================================
-   UI
-   ========================================================= */
-
-function addSlider(name,obj,key,min,max,step){
-
-  const grid=document.getElementById("ctlGrid");
-
-  const row=document.createElement("div");
-  row.className="row";
-
-  const lab=document.createElement("label");
-  lab.textContent=name;
-
-  const rng=document.createElement("input");
-  rng.type="range";
-  rng.min=min;
-  rng.max=max;
-  rng.step=step;
-  rng.value=obj[key];
-
-  const val=document.createElement("div");
-  val.textContent=obj[key].toFixed(3);
-
-  rng.oninput=()=>{
-    obj[key]=parseFloat(rng.value);
-    val.textContent=obj[key].toFixed(3);
-    applyLive();
-  };
-
-  row.appendChild(lab);
-  row.appendChild(rng);
-  row.appendChild(val);
-  grid.appendChild(row);
-}
-
-function buildUI(){
-
-  addSlider("size",CFG.PARTICLES,"size",0.02,0.4,0.005);
-  addSlider("opacity",CFG.PARTICLES,"opacity",0.05,1,0.01);
-  addSlider("damping",CFG.PARTICLES,"damping",0.9,0.999,0.001);
-  addSlider("driftXY",CFG.PARTICLES,"driftXY",0,0.12,0.002);
-  addSlider("driftZ",CFG.PARTICLES,"driftZ",0,0.08,0.002);
-  addSlider("depthNear",CFG.PARTICLES,"depthNear",0.3,10,0.05);
-  addSlider("depthFar",CFG.PARTICLES,"depthFar",1,30,0.1);
-  addSlider("FOV",CFG.CAMERA,"fov",40,110,1);
-
-  addSlider("haloAlphaInner",CFG.PARTICLES,"haloAlphaInner",0,1,0.01);
-  addSlider("haloAlphaMid",CFG.PARTICLES,"haloAlphaMid",0,1,0.01);
-  addSlider("coreAlpha",CFG.PARTICLES,"coreAlpha",0,1,0.01);
-
-  document.getElementById("btnReseed").onclick=reseedParticles;
-  document.getElementById("btnTex").onclick=rebuildTexture;
-  document.getElementById("btnAll").onclick=()=>{
-    rebuildAll();
-    applyLive();
-  };
-}
-
-/* =========================================================
    LOOP
    ========================================================= */
 
@@ -327,18 +252,10 @@ function loop(now){
   const dt=Math.min(0.033,(now-last)/1000);
   last=now;
 
-  applyLive();
   update(dt);
   renderer.render(scene,camera);
-
   requestAnimationFrame(loop);
 }
 
-/* =========================================================
-   START
-   ========================================================= */
-
-buildUI();
 rebuildAll();
-applyLive();
 loop();
